@@ -1,0 +1,31 @@
+Bash script: 
+#!/bin/bash
+
+#converting the base64 to hex
+data64=`tail -n 1 /tmp/dhinil | sed -n -e 's/^.*data":"//p' | cut -f1 -d"," | sed '$s/.$//'`
+datahex=`echo "$data64" | base64 -d | hexdump -v -e '/1 "%02x" '`
+
+
+#spliting the sensor data from hex
+temphex0=`echo $datahex | cut -c11-18`
+presshex0=`echo $datahex | cut -c21-28`
+humhex0=`echo $datahex | cut -c31-38`
+batthex0=`echo $datahex | cut -c7-8`
+
+
+
+temphex1=`echo "$temphex0" | sed 's/.\{2\}/&\x/g' | sed 's/^/x/' |  sed '$s/.$//' | sed 's#x#/x#g' | tr '/' '\'`
+humhex1=`echo "$humhex0" | sed 's/.\{2\}/&\x/g' | sed 's/^/x/' |  sed '$s/.$//' | sed 's#x#/x#g' | tr '/' '\'`
+presshex1=`echo "$presshex0" | sed 's/.\{2\}/&\x/g' | sed 's/^/x/' |  sed '$s/.$//' | sed 's#x#/x#g' | tr '/' '\'`
+
+
+temp=`echo -ne "$temphex1" | hexdump -e '1/4 "%f" "\n"'`
+hum=`echo -ne "$presshex1" | hexdump -e '1/4 "%f" "\n"'`
+press=`echo -ne "$humhex1" | hexdump -e '1/4 "%f" "\n"'`
+batt=`echo $((16#$batthex0))`
+
+#sending the temp, hum and press to mysql
+curl -X POST 'http://192.168.0.151/demo/insert.php?temp='$temp'&hum='$hum'&press='$press'' -H 'cache-control: no-cache' -H 'postman-token: 5629e0a5-fc5c-c514-89a9-d66f81f46867'
+
+#sending the battery perc to mysql
+curl -X POST 'http://192.168.0.151/battery/insert.php?perc='$batt'' -H 'cache-control: no-cache' -H 'postman-token: 5629e0a5-fc5c-c514-89a9-d66f81f46867'
