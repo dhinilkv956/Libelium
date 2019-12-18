@@ -1,0 +1,509 @@
+#include <WaspLoRaWAN.h>
+#include <WaspSensorGas_Pro.h>
+#include <TSL2561.h>
+#include <WaspFrame.h>
+#include <WaspSensorSW.h>
+
+
+bmeGasesSensor  bme;
+float temperature;  // Stores the temperature in ºC
+float humidity;   // Stores the realitve humidity in %RH
+float pressure;   // Stores the pressure in Pa
+
+
+
+//////////////////////////////////////////////
+uint8_t socket = SOCKET0;
+//////////////////////////////////////////////
+
+// Device parameters for Back-End registration
+////////////////////////////////////////////////////////////
+char DEVICE_EUI[]  = "0102030405060708";
+char DEVICE_ADDR[] = "05060708";
+char APP_EUI[] = "0102030405060708";
+char APP_KEY[] = "01020304050607080910111213141516";
+////////////////////////////////////////////////////////////
+
+// variable
+uint8_t error;
+
+// Define port to use in Back-End: from 1 to 223
+uint8_t PORT = 3;
+
+// Define data payload to send (maximum is up to data rate)
+char data[] = "0102030405060708090A0B0C0D0E0F";
+
+
+
+void setup() 
+{
+  USB.ON();
+  USB.println(F("LoRaWAN example - Module configuration"));
+  
+  //////////////////////////////////////////////
+  // 1. switch on
+  //////////////////////////////////////////////
+
+  error = LoRaWAN.ON(socket);
+
+
+
+  // Power on the 3v3. 
+  PWR.setSensorPower(SENS_3V3, SENS_ON);
+  // Enable the communication with the board
+  digitalWrite(GP_I2C_MAIN_EN, HIGH); 
+  // Power on the sensor. 
+  TSL.ON();
+
+  //  Turn on the Temprature, Humidity and pressure sensor
+  bme.ON();
+
+   
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("1. Switch ON OK"));     
+  }
+  else 
+  {
+    USB.print(F("1. Switch ON error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+  //////////////////////////////////////////////
+  // 2. Reset to factory default values
+  //////////////////////////////////////////////
+
+  error = LoRaWAN.factoryReset();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("2. Reset to factory default values OK"));     
+  }
+  else 
+  {
+    USB.print(F("2. Reset to factory error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+  //////////////////////////////////////////////
+  // 3. Set/Get Device EUI
+  //////////////////////////////////////////////
+
+  // Set Device EUI
+  error = LoRaWAN.setDeviceEUI(DEVICE_EUI);
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("3.1. Set Device EUI OK"));     
+  }
+  else 
+  {
+    USB.print(F("3.1. Set Device EUI error = ")); 
+    USB.println(error, DEC);
+  }
+
+  // Get Device EUI
+  error = LoRaWAN.getDeviceEUI();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.print(F("3.2. Get Device EUI OK. ")); 
+    USB.print(F("Device EUI: "));
+    USB.println(LoRaWAN._devEUI);
+  }
+  else 
+  {
+    USB.print(F("3.2. Get Device EUI error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+  //////////////////////////////////////////////
+  // 4. Set/Get Device Address
+  //////////////////////////////////////////////
+
+  // Set Device Address
+  error = LoRaWAN.setDeviceAddr(DEVICE_ADDR);
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("4.1. Set Device address OK"));     
+  }
+  else 
+  {
+    USB.print(F("4.1. Set Device address error = ")); 
+    USB.println(error, DEC);
+  }
+  
+  // Get Device Address
+  error = LoRaWAN.getDeviceAddr();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.print(F("4.2. Get Device address OK. ")); 
+    USB.print(F("Device address: "));
+    USB.println(LoRaWAN._devAddr);
+  }
+  else 
+  {
+    USB.print(F("4.2. Get Device address error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+
+  //////////////////////////////////////////////
+  // 7. Set retransmissions for uplink confirmed packet
+  //////////////////////////////////////////////
+
+  // set retries
+  error = LoRaWAN.setRetries(7);
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("7.1. Set Retransmissions for uplink confirmed packet OK"));     
+  }
+  else 
+  {
+    USB.print(F("7.1. Set Retransmissions for uplink confirmed packet error = ")); 
+    USB.println(error, DEC);
+  }
+  
+  // Get retries
+  error = LoRaWAN.getRetries();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.print(F("7.2. Get Retransmissions for uplink confirmed packet OK. ")); 
+    USB.print(F("TX retries: "));
+    USB.println(LoRaWAN._retries, DEC);
+  }
+  else 
+  {
+    USB.print(F("7.2. Get Retransmissions for uplink confirmed packet error = ")); 
+    USB.println(error, DEC);
+  }
+
+  //////////////////////////////////////////////
+  // 13. Set Adaptive Data Rate (recommended)
+  //////////////////////////////////////////////
+
+  // set ADR
+  error = LoRaWAN.setADR("on");
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("13.1. Set Adaptive data rate status to on OK"));     
+  }
+  else 
+  {
+    USB.print(F("13.1. Set Adaptive data rate status to on error = ")); 
+    USB.println(error, DEC);
+  }
+  
+  // Get ADR
+  error = LoRaWAN.getADR();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.print(F("13.2. Get Adaptive data rate status OK. ")); 
+    USB.print(F("Adaptive data rate status: "));
+    if (LoRaWAN._adr == true)
+    {
+      USB.println("on");      
+    }
+    else
+    {
+      USB.println("off");
+    }
+  }
+  else 
+  {
+    USB.print(F("13.2. Get Adaptive data rate status error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+  //////////////////////////////////////////////
+  // 14. Set Automatic Reply
+  //////////////////////////////////////////////
+
+  // set AR
+  error = LoRaWAN.setAR("on");
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("14.1. Set automatic reply status to on OK"));     
+  }
+  else 
+  {
+    USB.print(F("14.1. Set automatic reply status to on error = ")); 
+    USB.println(error, DEC);
+  }
+  
+  // Get AR
+  error = LoRaWAN.getAR();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.print(F("14.2. Get automatic reply status OK. ")); 
+    USB.print(F("Automatic reply status: "));
+    if (LoRaWAN._ar == true)
+    {
+      USB.println("on");      
+    }
+    else
+    {
+      USB.println("off");
+    }
+  }
+  else 
+  {
+    USB.print(F("14.2. Get automatic reply status error = ")); 
+    USB.println(error, DEC);
+  }
+
+  
+  
+  
+  //////////////////////////////////////////////
+  // 3. Set Application EUI
+  //////////////////////////////////////////////
+
+  error = LoRaWAN.setAppEUI(APP_EUI);
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("3. Application EUI set OK"));     
+  }
+  else 
+  {
+    USB.print(F("3. Application EUI set error = ")); 
+    USB.println(error, DEC);
+  }
+  
+  
+  //////////////////////////////////////////////
+  // 4. Set Application Session Key
+  //////////////////////////////////////////////
+
+  error = LoRaWAN.setAppKey(APP_KEY);
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("4. Application Key set OK"));     
+  }
+  else 
+  {
+    USB.print(F("4. Application Key set error = ")); 
+    USB.println(error, DEC);
+  }
+  
+  
+  /////////////////////////////////////////////////
+  // 5. Join OTAA to negotiate keys with the server
+  /////////////////////////////////////////////////
+  
+  error = LoRaWAN.joinOTAA();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("5. Join network OK"));         
+  }
+  else 
+  {
+    USB.print(F("5. Join network error = ")); 
+    USB.println(error, DEC);
+  }
+  
+  
+  
+  
+  //////////////////////////////////////////////
+  // 15. Save configuration
+  //////////////////////////////////////////////
+  
+  error = LoRaWAN.saveConfig();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("15. Save configuration OK"));     
+  }
+  else 
+  {
+    USB.print(F("15. Save configuration error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+  USB.println(F("------------------------------------"));
+  USB.println(F("Now the LoRaWAN module is ready for"));
+  USB.println(F("joining networks and send messages."));
+  USB.println(F("Please check the next examples..."));
+  USB.println(F("------------------------------------\n"));
+
+}
+  
+
+
+void loop() 
+{
+
+  //////////////////////////////////////////////
+  // 1. Switch on
+  //////////////////////////////////////////////
+
+  error = LoRaWAN.ON(socket);
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("1. Switch ON OK"));     
+  }
+  else 
+  {
+    USB.print(F("1. Switch ON error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+
+
+  ///////////////////////////////////////////
+  // 2. Read sensor
+  ///////////////////////////////////////////  
+
+  // Read the luminosity sensor
+  
+
+  //Read Temperature, pressure & humidity sensors    
+  temperature = bme.getTemperature();
+  humidity = bme.getHumidity();
+  pressure = bme.getPressure();
+
+
+
+    // And print the Luminosity value via USB
+  USB.println(F("*************"));
+  USB.print(F("Luminosity: "));
+  USB.print(TSL.lux);
+  USB.println(F(" luxes"));
+
+  // And print the Temperature,Pressure,Humidity values via USB
+  USB.println(F("*************"));
+  USB.print(F("Temperature: "));
+  USB.print(temperature);
+  USB.println(F(" Celsius degrees"));
+  USB.print(F("RH: "));
+  USB.print(humidity);
+  USB.println(F(" %"));
+  USB.print(F("Pressure: "));
+  USB.print(pressure);
+  USB.println(F(" Pa"));
+
+
+  ///////////////////////////////////////////
+  // 4. CREAR ASCII frame
+  /////////////////////////////////////////// 
+  frame.createFrame(BINARY);
+  frame.setFrameType(INFORMATION_FRAME_WTR_XTR);
+  frame.addSensor(SENSOR_GP_TC, temperature);
+  frame.addSensor(SENSOR_GP_HUM, humidity);
+  frame.addSensor(SENSOR_GP_PRES, pressure);
+  frame.setTinyLength(100);
+  frame.generateTinyFrame();
+
+ 
+
+  // MOSTRAR TRAMA DE DATOS SENSADOS (ASCII)
+  frame.showFrame();
+
+  //////////////////////////////////////////////
+  // 2. Join network
+  //////////////////////////////////////////////
+
+  error = LoRaWAN.joinABP();
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("2. Join network OK"));     
+
+    //////////////////////////////////////////////
+    // 3. Send Confirmed packet 
+    //////////////////////////////////////////////
+
+    error = LoRaWAN.sendConfirmed( PORT, frame.bufferTiny, frame.lengthTiny);
+
+    // Error messages:
+    /*
+     * '6' : Module hasn't joined a network
+     * '5' : Sending error
+     * '4' : Error with data length   
+     * '2' : Module didn't response
+     * '1' : Module communication error   
+     */
+    // Check status
+    if( error == 0 ) 
+    {
+      USB.println(F("3. Send Confirmed packet OK"));  
+      if (LoRaWAN._dataReceived == true)
+      { 
+        USB.print(F("   There's data on port number "));
+        USB.print(LoRaWAN._port,DEC);
+        USB.print(F(".\r\n   Data: "));
+        USB.println(LoRaWAN._data);
+      }   
+    }
+    else 
+    {
+      USB.print(F("3. Send Confirmed packet error = ")); 
+      USB.println(error, DEC);
+    } 
+  }
+  else 
+  {
+    USB.print(F("2. Join network error = ")); 
+    USB.println(error, DEC);
+  }
+
+
+  //////////////////////////////////////////////
+  // 4. Switch off
+  //////////////////////////////////////////////
+
+  error = LoRaWAN.OFF(socket);
+
+  // Check status
+  if( error == 0 ) 
+  {
+    USB.println(F("4. Switch OFF OK"));     
+  }
+  else 
+  {
+    USB.print(F("4. Switch OFF error = ")); 
+    USB.println(error, DEC);
+    USB.println();
+  }
+
+
+  delay(10000);
+}
