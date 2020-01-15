@@ -1,0 +1,38 @@
+#!/bin/bash
+tail -n 10 /tmp/dhinil | grep '"deveui":"30-52-bc-32-c8-91-3e-88"' | tail -n 1  > /tmp/30-52-bc-32-c8-91-3e-88_new.txt
+diff /tmp/30-52-bc-32-c8-91-3e-88_new.txt /tmp/30-52-bc-32-c8-91-3e-88.txt 
+result=`echo $?`
+cp /tmp/30-52-bc-32-c8-91-3e-88_new.txt /tmp/30-52-bc-32-c8-91-3e-88.txt
+
+data64=`tail -n 1 /tmp/30-52-bc-32-c8-91-3e-88.txt | sed -n -e 's/^.*data":"//p' | cut -f1 -d"," | sed '$s/.$//'`
+datahex=`echo "$data64" | base64 -d | hexdump -v -e '/1 "%02x" '`
+
+dphex0=`echo $datahex | cut -c11-18`
+echex0=`echo $datahex | cut -c21-28`
+sthex0=`echo $datahex | cut -c31-38`
+batthex0=`echo $datahex | cut -c7-8`
+
+
+dphex1=`echo "$dphex0" | sed 's/.\{2\}/&\x/g' | sed 's/^/x/' |  sed '$s/.$//' | sed 's#x#/x#g' | tr '/' '\'`
+echex1=`echo "$echex0" | sed 's/.\{2\}/&\x/g' | sed 's/^/x/' |  sed '$s/.$//' | sed 's#x#/x#g' | tr '/' '\'`
+sthex1=`echo "$sthex0" | sed 's/.\{2\}/&\x/g' | sed 's/^/x/' |  sed '$s/.$//' | sed 's#x#/x#g' | tr '/' '\'`
+
+
+dp=`echo -ne "$dphex1" | hexdump -e '1/4 "%f" "\n"'`
+ec=`echo -ne "$echex1" | hexdump -e '1/4 "%f" "\n"'`
+st=`echo -ne "$sthex1" | hexdump -e '1/4 "%f" "\n"'`
+batt=`echo $((16#$batthex0))`
+
+first=`awk -v "a=$dp" 'BEGIN { print 0.0000043 * a * a * a }'`
+second=`awk -v "b=$dp" 'BEGIN{print 0.00055 * b * b }'`
+third=`awk -v "c=$dp" 'BEGIN{print 0.0292 * c }'`
+plus=`awk -v "d=$first" -v "e=$third" 'BEGIN { print d + e }'`
+minus=`awk -v "f=$second" 'BEGIN { print f + 0.053 }'`
+final=`awk -v "g=$plus" -v "h=$minus" 'BEGIN { print g - h }'`
+VWC=`awk -v "i=$final" 'BEGIN { print i * 100 }'`
+
+if [[ $dp =~ ^[+-]?[0-9]+\.?[0-9]*$ || $dp =~ ^[+-]?[0-9]+$ ]] && [[ $ec =~ ^[+-]?[0-9]+\.?[0-9]*$ || $ec =~ ^[+-]?[0-9]+$ ]] && [[ $st =~ ^[+-]?[0-9]+\.?[0-9]*$ || $st =~ ^[+-]?[0-9]+$ ]] && [[ $VWC =~ ^[+-]?[0-9]+\.?[0-9]*$ || $VWC =~ ^[+-]?[0-9]+$ ]] && [[ $result == 1 ]];then
+        curl -X POST 'http://relay2.saturnmellc.com/soil/data.php?dp='$dp'&ec='$ec'&st='$st'&batt='$batt'&VWC='$VWC'' 
+else
+        echo $(date) $dp $ec $st $VWC >> /tmp/nonumber.txt
+fi
