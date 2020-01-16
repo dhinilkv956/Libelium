@@ -1,0 +1,35 @@
+#!/bin/bash
+tail -n 500 /tmp/dhinil | grep '"deveui":"00-80-00-00-04-01-72-dd"' | tail -n 1  > /tmp/00-80-00-00-04-01-72-dd_new.txt
+diff /tmp/00-80-00-00-04-01-72-dd_new.txt /tmp/00-80-00-00-04-01-72-dd.txt 
+result=`echo $?`
+cp /tmp/00-80-00-00-04-01-72-dd_new.txt /tmp/00-80-00-00-04-01-72-dd.txt
+
+data64=`tail -n 1 /tmp/00-80-00-00-04-01-72-dd.txt | sed -n -e 's/^.*data":"//p' | cut -f1 -d"," | sed '$s/.$//'`
+datahex=`echo "$data64" | base64 -d | hexdump -v -e '/1 "%02x" '`
+
+if [ ${#datahex} -gt 12 ]; then 
+        first0=`echo $datahex | cut -c11-12` 
+        second0=`echo $datahex | cut -c13-14`
+        temp0=`echo $datahex | cut -c15-16`
+        sm=1
+else 
+        first0=`echo $datahex | cut -c7-8`
+        second0=`echo $datahex | cut -c9-10`
+        temp0=`echo $datahex | cut -c11-12`
+        sm=0
+fi
+
+
+first=`echo $((0x$first0))`
+second=`echo $((0x$second0))`
+tilt=`echo $first.$second`
+temp=`echo $((0x$temp0))`
+echo $tilt
+batt=`echo $((16#$batthex0))`
+
+if [[ $tilt =~ ^[+-]?[0-9]+\.?[0-9]*$ || $tilt =~ ^[+-]?[0-9]+$ ]] && [[ $result == 1 ]];then
+        curl -X POST -L 'https://www.saturnme.com/nrdp?cmd=submitcmd&token=bjgn745hjpqu&command=PROCESS_SERVICE_CHECK_RESULT;IOT;tilt;0;Tilt:'$tilt'|temp='$tilt''  --insecure
+else
+        echo $date $temp $press $hum >> /tmp/nonumber.txt
+fi
+
