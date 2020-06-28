@@ -1,0 +1,374 @@
+#include <WaspBG96.h>
+#include <WaspFrame.h>
+#include <WaspSensorGas_Pro.h>
+#include <WaspPM.h>
+bmeGasesSensor  bme;
+float temperature;  // Stores the temperature in ºC
+float humidity;   // Stores the realitve humidity in %RH
+float pressure;   // Stores the pressure in Pa
+float battery;
+char info_string[61];
+char serial_number[61];
+int status;
+int measure;
+
+Gas gas_PRO_sensor(SOCKET_A);
+float concentration;  // Stores the concentration level in ppm
+float COtemperature;  // Stores the temperature in ºC
+float COhumidity;   // Stores the realitve humidity in %RH
+float COpressure;   // Stores the pressure in Pa
+
+// Define port to use in Back-End: from 1 to 223
+uint8_t PORT = 3;
+
+
+uint8_t error;
+uint32_t previous;
+char data[500];
+
+// APN settings
+char apn[] = "";
+char login[] = "";
+char password[] = "";
+///////////////////////////////////////
+// Operator selection
+///////////////////////////////////////
+char network_operator[] = "";
+///////////////////////////////////////
+uint8_t operator_type = LALPHANUMERIC_OPERATOR;
+///////////////////////////////////////
+// Band configuration
+char band[] = B20;
+/////////////////////////////////////
+// SERVER settings
+///////////////////////////////////////
+char host[] = "pp-2006230903wl.devportal.ptc.io";
+uint16_t remote_port = 443;
+///////////////////////////////////////
+// define data to send through TCP socket
+///////////////////////////////////////
+char http_format[] =
+  "PUT /Thingworx/Things/%s/properties/*?appKey=%s HTTP/1.1\r\n"\
+  "Host: pp-2006230903wl.devportal.ptc.io\r\n"\
+  "Content-Type: application/json\r\n"\
+  "Content-Length:%s\r\n"\
+  "\r\n{\"%s\":\"%s\"}\r\n";
+///////////////////////////////////////
+// define Socket ID (from 'CONNECTION_1' to 'CONNECTION_6')
+///////////////////////////////////////
+uint8_t socketId = WaspBG96::CONNECTION_1;
+///////////////////////////////////////
+// define certificate for SSL
+////////////////////////////////////////////////////////////////////////
+char certificate[] =//
+   "-----BEGIN CERTIFICATE-----\r\n"\
+  "MIIDITCCAgmgAwIBAgIJANMobhM8zq4FMA0GCSqGSIb3DQEBCwUAMGAxLTArBgNV\r\n"\
+  "BAMMJEJpdGRlZmVuZGVyIFBlcnNvbmFsIENBLk5ldC1EZWZlbmRlcjEMMAoGA1UE\r\n"\
+  "CwwDSURTMRQwEgYDVQQKDAtCaXRkZWZlbmRlcjELMAkGA1UEBhMCVVMwHhcNMjAw\r\n"\
+  "NjAxMDEwMDM0WhcNMjAwODMwMDEwMDM0WjAdMRswGQYDVQQDDBIqLmRldnBvcnRh\r\n"\
+  "bC5wdGMuaW8wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDH6MOuaDj3\r\n"\
+  "nXa5S5giCxDnKrZ3+7aKk6EbxLth2Hkza/Pxf6q5p5r65PDVkOCcV0x+yESg31cL\r\n"\
+  "vdsdH0leKbMJbPilOxm9QsBcuCzdcBIYptHkeY8i/tTqzPv8sWrhmNhcOX0KExA2\r\n"\
+  "PYow6tuqTwfG6MfgEBlRY1ntil1mJ8HIM74dIO3ktAS2CerXqEqPHEevDWrp/fa1\r\n"\
+  "1ldPJyoiqpEUyEJCyVy+D9aLPoFYUK9qCq4Lc3ReIiOsiJunSA+GNdGqOOZAT3QP\r\n"\
+  "u4LfVIgsBnUczNhLYk1yWodHAihkVWcae9lx7R7lN1qxR+j9vvUYqnXydAI2iIWL\r\n"\
+  "WsaA+wTqj7mLAgMBAAGjITAfMB0GA1UdEQQWMBSCEiouZGV2cG9ydGFsLnB0Yy5p\r\n"\
+  "bzANBgkqhkiG9w0BAQsFAAOCAQEAmjce63TWOPSPMoIqUqFTuqUgcmY0xBG+bGfH\r\n"\
+  "aqKh5LJTjDdUg7a/1EmEg45Nhe0WDDs4binx/8Prm4YEAi5VYcFiTsyqnyVdRB91\r\n"\
+  "5WtBifbd3m/lUvpkJ0mHisDtD4/xGIdNsKSzKWh74tAbIx1LXMFyAmlUaoEfpApv\r\n"\
+  "qt+qUKAja76VLweuTpNtJk6T7WXYKNI7n3SZNAdtbgdP3NFsW3Fh16Sicf8xGIh2\r\n"\
+  "oFDG/aTuN9k4NulicZfGWfqSkt7SK01isPMioQ4F5Zoz9fzt5WQtSBpNAZrH2nyv\r\n"\
+  "xHSPJIMD+TN5YvE7KLvcgooYrFOXCKv9yFsoWF0kmyxcSg1EZg==\r\n"\
+  "-----END CERTIFICATE-----";
+
+
+////////////////////////////////////////////////////////////////////////
+
+
+void setup()
+{
+  USB.ON();
+  USB.println(F("Start program\n"));
+  BG96.set_APN(apn, login, password);
+  BG96.show_APN();
+
+}
+
+void loop()
+{
+  //BME sensor reading
+  bme.ON();
+  temperature = bme.getTemperature();
+  humidity = bme.getHumidity();
+  pressure = bme.getPressure();
+  bme.OFF();
+  battery = PWR.getBatteryLevel();
+  USB.println(F("*****"));
+  USB.print(F("Temperature: "));
+  USB.print(temperature);
+  USB.println(F(" Celsius degrees"));
+  USB.print(F("RH: "));
+  USB.print(humidity);
+  USB.println(F(" %"));
+  USB.print(F("Pressure: "));
+  USB.print(pressure);
+  USB.println(F(" Pa"));
+
+
+
+
+   //PM sensor reading
+   status = PM.ON();
+   if (status == 1)
+   {
+     USB.println(F("Particle sensor started"));
+
+   }
+   else
+   {
+     USB.println(F("Error starting the particle sensor"));
+   }
+   if (status == 1)
+   {
+     measure = PM.getPM(5000, 5000);
+     if (measure == 1)
+     {
+       USB.println(F("Measure performed"));
+       USB.print(F("PM 1: "));
+       USB.printFloat(PM._PM1, 3);
+       USB.println(F(" ug/m3"));
+       USB.print(F("PM 2.5: "));
+       USB.printFloat(PM._PM2_5, 3);
+       USB.println(F(" ug/m3"));
+       USB.print(F("PM 10: "));
+       USB.printFloat(PM._PM10, 3);
+       USB.println(F(" ug/m3"));
+       USB.print(F("Temp: "));
+       USB.print(PM._temp);
+       USB.println(F(" ºC"));
+       USB.print(F("Hum: "));
+       USB.print(PM._hum);
+       USB.println(F(" %RH"));
+       USB.print("Bin: ");
+       for (int i = 0; i < 24; i++)
+       {
+         USB.print(PM._bin[i]);
+         USB.print(";");
+       }
+       USB.println();
+     }
+     else
+     {
+       USB.print(F("Error performing the measure. Error code:"));
+       USB.println(measure, DEC);
+     }
+   }
+   PM.OFF();
+  
+
+
+
+   // Reading CO sensor 
+   gas_PRO_sensor.ON();
+   // Read the electrochemical sensor and compensate with the temperature internally
+   concentration = gas_PRO_sensor.getConc();
+   // Read enviromental variables
+   // And print the values via USB
+   USB.println(F("*************"));
+   USB.print(F("Gas concentration: "));
+   USB.print(concentration);
+   USB.println(F(" ppm"));
+   USB.print(F("Temperature: "));
+   USB.print(temperature);
+   USB.println(F(" Celsius degrees"));
+   USB.print(F("RH: "));
+   USB.print(humidity);
+   USB.println(F(" %"));
+   USB.print(F("Pressure: "));
+   USB.print(pressure);
+   USB.println(F(" Pa"));
+    
+
+  // Create new frame (ASCII)
+  frame.createFrame(ASCII);
+  // Add temperature
+  frame.addSensor(SENSOR_BAT, battery);
+  frame.addSensor(SENSOR_GASES_PRO_TC, temperature);
+  frame.addSensor(SENSOR_GASES_PRO_HUM, humidity);
+  frame.addSensor(SENSOR_GASES_PRO_PRES, pressure);
+  frame.addSensor(SENSOR_GASES_PRO_PM1, PM._PM1);
+  frame.addSensor(SENSOR_GASES_PRO_PM2_5, PM._PM2_5);
+  frame.addSensor(SENSOR_GASES_PRO_PM10, PM._PM10);
+  frame.addSensor(SENSOR_GASES_PRO_CO, concentration);
+  frame.showFrame();
+
+  // define aux buffer
+  char frame_string[frame.length * 2 + 1];
+  memset(frame_string, 0x00, sizeof(frame_string));
+
+  // convert frame from bytes to ASCII representation
+  Utils.hex2str((uint8_t*)frame.buffer, (char*)frame_string, frame.length);
+  USB.print(F("Frame to send: "));
+  USB.println(frame_string);
+  //snprintf( data, sizeof(data), http_format, frame_string, host);
+
+
+
+  error = BG96.ON();
+
+  if (error == 0)
+  {
+    USB.println(F("2. NB-IoT module ready"));
+    error = BG96.nbiotConnection(apn, band, network_operator, operator_type);
+    if (error == 0)
+    {
+      USB.println(F("2.1. NB-IoT connection: OK "));
+      error = BG96.contextActivation(1, 5);
+      if (error == 0)
+      {
+        USB.println(F("2.1. NB-IoT context connection: OK "));
+        USB.print(F("IP: ")); USB.println(BG96._ip);
+        SET_DNS();
+        SET_CA();
+        TCP_OPEN();
+        //Setting tempertaure data for sending
+        snprintf( data, sizeof(data), http_format, "LibeliumTemperature", "67139fa3-d9fc-4f7f-8f0d-56b74e873a93", "265", "Temperature", frame_string);
+        USB.print(F(" Data to send: "));
+        USB.println(data);
+        TCP_SEND();
+        TCP_RECIEVE();
+        TCP_CLOSE();
+
+      }
+    }
+  }
+  else
+  {
+    // Problem with the communication with the NB-IoT module
+    USB.println(F("NB-IoT module not started"));
+    USB.print(F("Error code: "));
+    USB.println(error, DEC);
+  }
+  SWITCH_OFF_NB_IOT();
+  USB.println(F("6. Enter deep sleep..."));
+  PWR.deepSleep("00:00:01:00", RTC_OFFSET, RTC_ALM1_MODE1, ALL_OFF);
+
+  USB.ON();
+  USB.println(F("7. Wake up!!\n\n"));
+
+}
+
+
+//Custom functions
+
+int TCP_OPEN() {
+  error = BG96.openSocketSSL(socketId, host, remote_port);
+  if (error == 0)
+  {
+    USB.println(F("4. Opening a socket... done!"));
+  }
+  else
+  {
+    USB.print(F("4. Error opening socket. Error="));
+    USB.println(error, DEC);
+  }
+  return error;
+}
+
+int SWITCH_OFF_NB_IOT() {
+  error = BG96.OFF();
+  if (error == 0)
+  {
+    USB.println(F("5. Module is power off"));
+  }
+  else
+  {
+    USB.println(F("5. Power off ERROR"));
+  }
+}
+
+
+int SET_DNS() {
+  error = BG96.setDNSServer("8.8.8.8", "8.8.4.4");
+  if (error == 0)
+  {
+    USB.println(F("3. Setting DNS server: OK "));
+  }
+  else
+  {
+    USB.println(F("3. DNS error: ")); USB.println(error, DEC);
+    USB.println(BG96._buffer, BG96._length);
+  }
+}
+
+int SET_CA() {
+  error = BG96.manageSSL(socketId, WaspBG96::SSL_ACTION_STORE, WaspBG96::SSL_TYPE_CA_CERT, certificate);
+
+  if (error == 0)
+  {
+    USB.println(F("3. Set CA certificate OK"));
+  }
+  else
+  {
+    USB.print(F("3. Error setting CA certificate. Error="));
+    USB.println(error, DEC);
+  }
+
+}
+
+
+int TCP_SEND() {
+  error = BG96.sendSSL(socketId, data);
+  if (error == 0)
+  {
+    USB.println(F("4.1. Sending a data... done!"));
+  }
+  else
+  {
+    USB.print(F("4.1. Error sending a data. Code: "));
+    USB.println(error, DEC);
+  }
+}
+
+
+int TCP_RECIEVE() {
+  USB.print(F("4.2. Waiting to receive data..."));
+
+  error = BG96.receiveSSL(socketId, 60000);
+
+  if (error == 0)
+  {
+    if (BG96.socketStatusSSL[socketId].received > 0)
+    {
+      USB.println(F("\n-----------------------------------"));
+      USB.print(F("Data received:"));
+      USB.println(BG96._buffer, BG96._length);
+      USB.println(F("-----------------------------------"));
+    }
+    else
+    {
+      USB.println(F("NO data received"));
+    }
+  }
+  else
+  {
+    USB.println(F("No data received."));
+    USB.println(error, DEC);
+  }
+}
+
+
+
+int TCP_CLOSE() {
+  error = BG96.closeSocketSSL(socketId);
+
+  if (error == 0)
+  {
+    USB.println(F("4x.3. Socket closed OK"));
+  }
+  else
+  {
+    USB.print(F("4.3. Error closing socket. Error code: "));
+    USB.println(error, DEC);
+  }
+}
